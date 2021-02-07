@@ -121,7 +121,18 @@ def negSamplingLossAndGradient(
     gradCenterVec = None
     gradOutsideVecs = None
     ### Please use your implementation of sigmoid in here.
-
+    outWindowVectors = outsideVectors[indices]
+    gradOutsideVecs = np.zeros_like(outsideVectors)
+    x = -np.dot(outWindowVectors, centerWordVec)
+    x[0] = -x[0]
+    prob = sigmoid(x)
+    loss = -np.sum(np.log(prob))
+    prob = -(prob - 1)
+    prob[0] = -prob[0]
+    gradCenterVec = np.dot(prob.T, outWindowVectors)
+    outGrads = np.dot(np.expand_dims(prob, axis=1), np.expand_dims(centerWordVec, axis=1).T)
+    for num, idx in enumerate(indices):
+        gradOutsideVecs[idx] += outGrads[num]
     ### END YOUR CODE
 
     return loss, gradCenterVec, gradOutsideVecs
@@ -237,11 +248,11 @@ def test_word2vec():
     grad_tests_softmax(skipgram, dummy_tokens, dummy_vectors, dataset)
 
     print("==== Gradient check for skip-gram with negSamplingLossAndGradient ====")
-    # gradcheck_naive(lambda vec: word2vec_sgd_wrapper(
-    #     skipgram, dummy_tokens, vec, dataset, 5, negSamplingLossAndGradient),
-    #     dummy_vectors, "negSamplingLossAndGradient Gradient")
-    #
-    # grad_tests_negsamp(skipgram, dummy_tokens, dummy_vectors, dataset, negSamplingLossAndGradient)
+    gradcheck_naive(lambda vec: word2vec_sgd_wrapper(
+        skipgram, dummy_tokens, vec, dataset, 5, negSamplingLossAndGradient),
+        dummy_vectors, "negSamplingLossAndGradient Gradient")
+
+    grad_tests_negsamp(skipgram, dummy_tokens, dummy_vectors, dataset, negSamplingLossAndGradient)
 
 
 if __name__ == "__main__":
