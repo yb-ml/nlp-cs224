@@ -121,18 +121,18 @@ def negSamplingLossAndGradient(
     gradCenterVec = None
     gradOutsideVecs = None
     ### Please use your implementation of sigmoid in here.
-    outWindowVectors = outsideVectors[indices]
+    outsideVector = outsideVectors[outsideWordIdx]
+    negSampleVectors = outsideVectors[negSampleWordIndices]
+    outsideVectorProb = sigmoid(np.dot(outsideVector, centerWordVec))
+    negSampleVectorsProb = sigmoid(-np.dot(negSampleVectors, centerWordVec))
     gradOutsideVecs = np.zeros_like(outsideVectors)
-    x = -np.dot(outWindowVectors, centerWordVec)
-    x[0] = -x[0]
-    prob = sigmoid(x)
-    loss = -np.sum(np.log(prob))
-    prob = -(prob - 1)
-    prob[0] = -prob[0]
-    gradCenterVec = np.dot(prob.T, outWindowVectors)
-    outGrads = np.dot(np.expand_dims(prob, axis=1), np.expand_dims(centerWordVec, axis=1).T)
-    for num, idx in enumerate(indices):
-        gradOutsideVecs[idx] += outGrads[num]
+    loss = -np.log(outsideVectorProb) - np.sum(np.log(negSampleVectorsProb))
+    gradCenterVec = (outsideVectorProb - 1) * outsideVector - np.dot((negSampleVectorsProb - 1), negSampleVectors)
+    gradOutsidVec = (outsideVectorProb - 1) * centerWordVec
+    gradNegSampleVec = -np.dot(np.expand_dims(negSampleVectorsProb - 1, axis=1), np.expand_dims(centerWordVec, axis=0))
+    gradOutsideVecs[outsideWordIdx] += gradOutsidVec
+    for num, idx in enumerate(negSampleWordIndices):
+        gradOutsideVecs[idx] += gradNegSampleVec[num]
     ### END YOUR CODE
 
     return loss, gradCenterVec, gradOutsideVecs
