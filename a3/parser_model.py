@@ -70,11 +70,20 @@ class ParserModel(nn.Module):
         ###     nn.Parameter: https://pytorch.org/docs/stable/nn.html#parameters
         ###     Initialization: https://pytorch.org/docs/stable/nn.init.html
         ###     Dropout: https://pytorch.org/docs/stable/nn.html#dropout-layers
-        ### 
+        ###
         ### See the PDF for hints.
 
-
-
+        # Requirements: DO NOT use torch.nn.Linear or torch.nn.Embedding
+        self.embed_to_hidden_weight = nn.Parameter(torch.Tensor(self.hidden_size, self.n_features * self.embed_size))
+        self.embed_to_hidden_bias = nn.Parameter(torch.Tensor(self.hidden_size))
+        self.dropout = torch.nn.Dropout(p = self.dropout_prob)
+        self.hidden_to_logits_weight = nn.Parameter(torch.Tensor(self.n_classes, self.hidden_size))
+        self.hidden_to_logits_bias = nn.Parameter(torch.Tensor(self.n_classes))
+        # initialize...
+        nn.init.xavier_uniform_(self.embed_to_hidden_weight)
+        nn.init.uniform_(self.embed_to_hidden_bias)
+        nn.init.xavier_uniform_(self.hidden_to_logits_weight)
+        nn.init.uniform_(self.hidden_to_logits_bias)
 
         ### END YOUR CODE
 
@@ -106,9 +115,9 @@ class ParserModel(nn.Module):
         ###     Gather: https://pytorch.org/docs/stable/torch.html#torch.gather
         ###     View: https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
         ###     Flatten: https://pytorch.org/docs/stable/generated/torch.flatten.html
-
-
-
+        batch_size = w.shape[0]
+        x = torch.index_select(self.embeddings, dim=0, index=torch.flatten(w))
+        x = x.view(batch_size, self.n_features * self.embed_size)
         ### END YOUR CODE
         return x
 
@@ -143,8 +152,10 @@ class ParserModel(nn.Module):
         ### Please see the following docs for support:
         ###     Matrix product: https://pytorch.org/docs/stable/torch.html#torch.matmul
         ###     ReLU: https://pytorch.org/docs/stable/nn.html?highlight=relu#torch.nn.functional.relu
-
-
+        x = self.embedding_lookup(w) # (batch, n_feature * embed_size)
+        h = F.relu(torch.matmul(x, self.embed_to_hidden_weight.T) + self.embed_to_hidden_bias)
+        h = self.dropout(h)
+        logits = torch.matmul(h, self.hidden_to_logits_weight.T) + self.hidden_to_logits_bias
         ### END YOUR CODE
         return logits
 
@@ -156,17 +167,35 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--forward', action='store_true', help='sanity check for forward function')
     args = parser.parse_args()
 
-    embeddings = np.zeros((100, 30), dtype=np.float32)
-    model = ParserModel(embeddings)
+    def get_model(use_zero_embeddings: bool = True):
+        if use_zero_embeddings:
+            embeddings = np.zeros((100, 30), dtype=np.float32)
+        else:
+            embeddings = np.asarray(np.random.normal(0, 0.9, (100, 30)), dtype='float32')
+        return ParserModel(embeddings)
 
     def check_embedding():
         inds = torch.randint(0, 100, (4, 36), dtype=torch.long)
-        selected = model.embedding_lookup(inds)
+
+        def validate_and_get_selected(model):
+            selected = model.embedding_lookup(inds)
+            embed_size = model.embed_size
+            for i in range(0, inds.shape[0]):
+                for j in range(0, inds.shape[1]):
+                    assert (model.embeddings[inds[i, j], :] == selected[i, j * embed_size:(j + 1) * embed_size]).detach().numpy().all
+            return selected
+
+        model = get_model()
+        selected = validate_and_get_selected(model)
         assert np.all(selected.data.numpy() == 0), "The result of embedding lookup: " \
                                       + repr(selected) + " contains non-zero elements."
 
+        model = get_model(False)
+        validate_and_get_selected(model)
+
     def check_forward():
-        inputs =torch.randint(0, 100, (4, 36), dtype=torch.long)
+        model = get_model()
+        inputs = torch.randint(0, 100, (4, 36), dtype=torch.long)
         out = model(inputs)
         expected_out_shape = (4, 3)
         assert out.shape == expected_out_shape, "The result shape of forward is: " + repr(out.shape) + \

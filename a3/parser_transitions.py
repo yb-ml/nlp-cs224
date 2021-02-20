@@ -59,10 +59,12 @@ class PartialParse(object):
             last = self.stack[-1]
             second_last = self.stack.pop(-2)
             self.dependencies.append((last, second_last))
-        else:
+        elif transition == "RA":
             second_last = self.stack[-2]
             last = self.stack.pop(-1)
             self.dependencies.append((second_last, last))
+        else:
+            raise Exception(f"Illegal transition: {transition}")
         ### END YOUR CODE
 
     def parse(self, transitions):
@@ -120,10 +122,14 @@ def minibatch_parse(sentences, model, batch_size):
     while len(unfinished_parses) > 0:
         batch = unfinished_parses[:batch_size]
         transitions = model.predict(batch)
+        indices_to_remove = set()
         for idx, (parse, transition) in enumerate(zip(batch, transitions)):
             parse.parse_step(transition)
             if parse.is_completed():
-                unfinished_parses.pop(idx)
+                indices_to_remove.add(idx)
+        unfinished_parses = \
+            [el for i, el in enumerate(unfinished_parses[:batch_size]) if i not in indices_to_remove] + \
+            unfinished_parses[batch_size:]
     dependencies = [parse.dependencies for parse in partial_parses]
 
     ### END YOUR CODE

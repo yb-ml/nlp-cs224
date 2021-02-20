@@ -347,7 +347,7 @@ def minibatches(data, batch_size):
     return get_minibatches([x, one_hot], batch_size)
 
 
-def load_and_preprocess_data(reduced=True):
+def load_and_preprocess_data(mode:str="normal"):
     config = Config()
 
     print("Loading data...",)
@@ -358,10 +358,14 @@ def load_and_preprocess_data(reduced=True):
                          lowercase=config.lowercase)
     test_set = read_conll(os.path.join(config.data_path, config.test_file),
                           lowercase=config.lowercase)
-    if reduced:
+    if mode == "debug":
         train_set = train_set[:1000]
         dev_set = dev_set[:500]
         test_set = test_set[:500]
+    elif mode == "minimal":
+        train_set = train_set[:20]
+        dev_set = dev_set[:10]
+        test_set = test_set[:10]
     print("took {:.2f} seconds".format(time.time() - start))
 
     print("Building parser...",)
@@ -375,14 +379,24 @@ def load_and_preprocess_data(reduced=True):
     for line in open(config.embedding_file).readlines():
         sp = line.strip().split()
         word_vectors[sp[0]] = [float(x) for x in sp[1:]]
-    embeddings_matrix = np.asarray(np.random.normal(0, 0.9, (parser.n_tokens, 50)), dtype='float32')
+    if mode == "minimal":
+        embed_size = 5
+    else:
+        embed_size = 50
+    embeddings_matrix = np.asarray(np.random.normal(0, 0.9, (parser.n_tokens, embed_size)), dtype='float32')
 
     for token in parser.tok2id:
         i = parser.tok2id[token]
+        word_vector = None
         if token in word_vectors:
-            embeddings_matrix[i] = word_vectors[token]
+            word_vector = word_vectors[token]
         elif token.lower() in word_vectors:
-            embeddings_matrix[i] = word_vectors[token.lower()]
+            word_vector = word_vectors[token.lower()]
+        if word_vector is not None:
+            if mode == "minimal":
+                embeddings_matrix[i] = word_vector[:5]
+            else:
+                embeddings_matrix[i] = word_vector
     print("took {:.2f} seconds".format(time.time() - start))
 
     print("Vectorizing data...",)

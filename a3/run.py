@@ -22,6 +22,7 @@ from utils.parser_utils import minibatches, load_and_preprocess_data, AverageMet
 
 parser = argparse.ArgumentParser(description='Train neural dependency parser in pytorch')
 parser.add_argument('-d', '--debug', action='store_true', help='whether to enter debug mode')
+parser.add_argument('-m', '--minimal', action='store_true', help='whether to test with the minimal data')
 args = parser.parse_args()
 
 # -----------------
@@ -52,8 +53,8 @@ def train(parser, train_data, dev_data, output_path, batch_size=1024, n_epochs=1
     ### Please see the following docs for support:
     ###     Adam Optimizer: https://pytorch.org/docs/stable/optim.html
     ###     Cross Entropy Loss: https://pytorch.org/docs/stable/nn.html#crossentropyloss
-
-
+    optimizer = optim.Adam(parser.model.parameters())
+    loss_func = nn.CrossEntropyLoss()
 
     ### END YOUR CODE
 
@@ -105,9 +106,10 @@ def train_for_epoch(parser, train_data, dev_data, optimizer, loss_func, batch_si
             ###      4) Take step with the optimizer
             ### Please see the following docs for support:
             ###     Optimizer Step: https://pytorch.org/docs/stable/optim.html#optimizer-step
-
-
-
+            logits = parser.model(train_x)
+            loss = loss_func(logits, train_y)
+            loss.backward()
+            optimizer.step()
 
             ### END YOUR CODE
             prog.update(1)
@@ -124,16 +126,27 @@ def train_for_epoch(parser, train_data, dev_data, optimizer, loss_func, batch_si
 
 if __name__ == "__main__":
     debug = args.debug
+    minimal = args.minimal
 
     assert (torch.__version__.split(".") >= ["1", "0", "0"]), "Please install torch version >= 1.0.0"
 
     print(80 * "=")
     print("INITIALIZING")
     print(80 * "=")
-    parser, embeddings, train_data, dev_data, test_data = load_and_preprocess_data(debug)
+    if minimal:
+        mode = "minimal"
+    elif debug:
+        mode = "debug"
+    else:
+        mode = "normal"
+    parser, embeddings, train_data, dev_data, test_data = load_and_preprocess_data(mode)
 
     start = time.time()
-    model = ParserModel(embeddings)
+    if minimal:
+        hidden_size = 3
+    else:
+        hidden_size = 200
+    model = ParserModel(embeddings, hidden_size = hidden_size)
     parser.model = model
     print("took {:.2f} seconds\n".format(time.time() - start))
 
@@ -146,9 +159,15 @@ if __name__ == "__main__":
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    train(parser, train_data, dev_data, output_path, batch_size=1024, n_epochs=10, lr=0.0005)
+    if minimal:
+        batch_size = 2
+        n_epochs = 1
+    else:
+        batch_size = 1024
+        n_epochs = 10
+    train(parser, train_data, dev_data, output_path, batch_size=batch_size, n_epochs=n_epochs, lr=0.0005)
 
-    if not debug:
+    if mode != "normal":
         print(80 * "=")
         print("TESTING")
         print(80 * "=")
