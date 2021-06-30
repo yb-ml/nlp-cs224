@@ -53,9 +53,8 @@ mconf = model.GPTConfig(pretrain_dataset.vocab_size, pretrain_dataset.block_size
 """
 Don't change above here; write your code below
 """
-
 if args.variant == 'vanilla':
-    pass # TODO [part c]: Make some model here
+    model = model.GPT(mconf).to(device)
 elif args.variant == 'synthesizer':
     pass # TODO [part g]: Make some other model here
 
@@ -112,7 +111,19 @@ elif args.function == 'finetune':
     #         warmup_tokens=512*20
     #         final_tokens=200*len(pretrain_dataset)*block_size
     #         num_workers=4
-    raise NotImplementedError
+    with open(args.finetune_corpus_path, 'r') as infile:
+        data = infile.read()  # don't worry we won't run out of file handles
+    train_dataset = dataset.NameDataset(pretrain_dataset, data)
+    if args.reading_params_path:
+        max_epochs = 10
+    else:
+        max_epochs = 75
+
+    tconf = dict(batch_size=256, learning_rate=6e-4, lr_decay=True, max_epochs=max_epochs,
+                 warmup_tokens=512*20, num_workers=4, ckpt_path=args.writing_params_path)
+    tconf = trainer.TrainerConfig(**tconf)
+    trainer = trainer.Trainer(model, train_dataset, None, tconf)
+    trainer.train()
 elif args.function == 'evaluate':
     assert args.outputs_path is not None
     assert args.reading_params_path is not None

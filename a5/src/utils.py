@@ -69,7 +69,7 @@ def evaluate_places(filepath, predicted_places):
       return (0,0)
     true_places = [x[1] for x in lines]
     total = len(true_places)
-    assert total == len(predicted_places)
+    assert total == len(predicted_places), f"total:{total}, predicted_places:{len(predicted_places)}"
     correct = len(list(filter(lambda x: x[0] == x[1],
       zip(true_places, predicted_places))))
     return (float(total),float(correct))

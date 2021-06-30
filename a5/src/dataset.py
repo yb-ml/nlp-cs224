@@ -167,8 +167,25 @@ class CharCorruptionDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        # TODO [part e]: see spec above
-        raise NotImplementedError
+        document = self.data[idx]
+        # TODO: what are some common distributions used in literatures?
+        doc_len = random.randint(4, self.block_size * 7 / 8)
+        # TODO: different starting points?
+        document = document[:doc_len]
+        masked_span_len = round(random.gauss(len(document)/4, 1))
+        start_pos = random.randint(0, len(document) - masked_span_len)
+        # TODO: empty suffix or prefix okay?
+        masked_content = document[start_pos: start_pos + masked_span_len]
+        prefix = document[:start_pos]
+        suffix = document[start_pos + masked_span_len:]
+        document = prefix + self.MASK_CHAR + suffix + self.MASK_CHAR + masked_content
+        buffer_len = self.block_size - len(document)
+        document = document + self.PAD_CHAR * buffer_len
+        # encode every character to an integer
+        dix = [self.stoi[s] for s in document]
+        x = torch.tensor(dix[:-1], dtype=torch.long)
+        y = torch.tensor(dix[1:], dtype=torch.long)
+        return x, y
 
 """
 Code under here is strictly for your debugging purposes; feel free to modify
