@@ -37,7 +37,7 @@ class NameDataset(Dataset):
     def __getitem__(self, idx):
         inp, oup = self.data[idx].split('\t')
         x = inp + self.MASK_CHAR + oup + self.MASK_CHAR
-        x = x + self.PAD_CHAR*(self.block_size - len(x))
+        x = x + self.PAD_CHAR*(self.block_size + 1 - len(x))
         y = self.PAD_CHAR*(len(inp)-1) + x[len(inp):]
         
         x = x[:-1]
@@ -172,14 +172,18 @@ class CharCorruptionDataset(Dataset):
         doc_len = random.randint(4, self.block_size * 7 / 8)
         # TODO: different starting points?
         document = document[:doc_len]
-        masked_span_len = round(random.gauss(len(document)/4, 1))
-        start_pos = random.randint(0, len(document) - masked_span_len)
+        truncated_len = len(document)
+        masked_span_len = max(0, min(truncated_len, round(random.gauss(truncated_len/4, 1))))
+        if len(document) - masked_span_len > 0:
+            start_pos = random.randint(0, len(document) - masked_span_len)
+        else:
+            start_pos = 0
         # TODO: empty suffix or prefix okay?
         masked_content = document[start_pos: start_pos + masked_span_len]
         prefix = document[:start_pos]
         suffix = document[start_pos + masked_span_len:]
         document = prefix + self.MASK_CHAR + suffix + self.MASK_CHAR + masked_content
-        buffer_len = self.block_size - len(document)
+        buffer_len = self.block_size + 1 - len(document)
         document = document + self.PAD_CHAR * buffer_len
         # encode every character to an integer
         dix = [self.stoi[s] for s in document]

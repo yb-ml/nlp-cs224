@@ -11,6 +11,7 @@ import dataset
 import model
 import trainer
 import utils
+import attention
 
 argp = argparse.ArgumentParser()
 argp.add_argument('function',
@@ -53,10 +54,8 @@ mconf = model.GPTConfig(pretrain_dataset.vocab_size, pretrain_dataset.block_size
 """
 Don't change above here; write your code below
 """
-if args.variant == 'vanilla':
-    model = model.GPT(mconf).to(device)
-elif args.variant == 'synthesizer':
-    pass # TODO [part g]: Make some other model here
+mconf.attention_mode = attention.AttentionMode[args.variant]
+model = model.GPT(mconf).to(device)
 
 # From here on, your code should be identical independent of which
 # variant (vanilla or synthesizer) has been chosen.
@@ -79,7 +78,12 @@ if args.function == 'pretrain':
     #     warmup_tokens=512*20
     #     final_tokens=200*len(pretrain_dataset)*block_size
     #     num_workers=4
-    raise NotImplementedError
+    tconf = dict(batch_size=128, learning_rate=6e-3, lr_decay=True, max_epochs=650,
+                 warmup_tokens=512*20, final_tokens=200*len(pretrain_dataset)*block_size,
+                 num_workers=4, ckpt_path=args.writing_params_path)
+    tconf = trainer.TrainerConfig(**tconf)
+    trainer = trainer.Trainer(model, pretrain_dataset, None, tconf)
+    trainer.train()
 elif args.function == 'finetune':
     assert args.writing_params_path is not None
     assert args.finetune_corpus_path is not None
@@ -116,6 +120,7 @@ elif args.function == 'finetune':
     train_dataset = dataset.NameDataset(pretrain_dataset, data)
     if args.reading_params_path:
         max_epochs = 10
+        model.load_state_dict(torch.load(args.reading_params_path))
     else:
         max_epochs = 75
 

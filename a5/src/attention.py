@@ -4,8 +4,16 @@ import logging
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+
+class AttentionMode(Enum):
+    vanilla = 1
+    additive = 2
+    synthesizer = 3
+
 
 class CausalSelfAttention(nn.Module):
     """
@@ -63,8 +71,8 @@ class SynthesizerAttention(nn.Module):
         # NEW learnable weights
         self.w1 = nn.Linear(config.n_embd, config.n_embd)
         self.w2 = nn.Parameter(torch.zeros(config.n_embd // config.n_head,
-            config.block_size-1))
-        self.b2 = nn.Parameter(torch.zeros(config.block_size-1))
+            config.block_size))
+        self.b2 = nn.Parameter(torch.zeros(config.block_size))
         # value projection
         self.value = nn.Linear(config.n_embd, config.n_embd)
         # regularization
@@ -90,4 +98,17 @@ class SynthesizerAttention(nn.Module):
         #   - Consider especially the parameters self.w1, self.w2 and self.b2.
         #       How do these map to the matrices in the handout?
 
-        raise NotImplementedError
+        B, T, C = x.size()
+
+        v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        x = self.w1(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+
+        att = F.relu(x) @ self.w2[:,:T] + self.b2[:T] # (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+        att = att.masked_fill(self.mask[:,:,:T,:T] == 0, -1e10) # todo: just use float('-inf') instead?
+        att = F.softmax(att, dim=-1)
+        att = self.attn_drop(att)
+        y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+        y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
+
+        # output projection
+        return self.resid_drop(self.proj(y))
