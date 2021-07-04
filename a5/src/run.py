@@ -19,7 +19,7 @@ argp.add_argument('function',
     choices=["pretrain", "finetune", "evaluate"])
 argp.add_argument('variant',
     help="Which variant of the model to run ('vanilla' or 'synthesizer')",
-    choices=["vanilla", "synthesizer"])
+    choices=["vanilla", "synthesizer", "dense_and_causual"])
 argp.add_argument('pretrain_corpus_path',
     help="Path of the corpus to pretrain on", default=None)
 argp.add_argument('--reading_params_path',

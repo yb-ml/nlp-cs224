@@ -50,6 +50,8 @@ class Block(nn.Module):
             self.attn = attention.CausalSelfAttention(config)
         elif config.attention_mode == attention.AttentionMode.synthesizer:
             self.attn = attention.SynthesizerAttention(config)
+        elif config.attention_mode == attention.AttentionMode.dense_and_causual:
+            self.attn = attention.DenseAndCausalAttention(config)
         else:
             raise RuntimeError(f"Unsupported attention mode {config.attention_mode}")
         self.mlp = nn.Sequential(
